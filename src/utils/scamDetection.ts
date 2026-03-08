@@ -1,411 +1,403 @@
-import { ScamAnalysisResult } from '../types/scam';
+import { ScamAnalysisResult, ScamType } from '../types/scam';
 import { extractURLs, getDomain, hasSuspiciousTLD, isShortenedURL, extractPhoneNumbers } from './urlDetection';
 import { trustedDomains } from './trustedDomains';
 
+/* ---------------- KEYWORDS ---------------- */
+
 const urgencyKeywords = [
-  'urgent', 'immediately', 'act now', 'today only', 'expires today',
-  'last chance', 'limited time', 'hurry', 'quick', 'fast', 'now',
-  'तुरंत', 'अभी', 'जल्दी'
+'urgent','immediately','act now','today only','expires today',
+'last chance','limited time','hurry','now'
 ];
 
 const fearKeywords = [
-  'blocked', 'suspended', 'terminated', 'legal action', 'court',
-  'arrest', 'penalty', 'fine', 'police', 'lawsuit',
-  'बंद', 'रोक', 'कानूनी'
+'blocked','suspended','account locked','legal action','arrest','penalty','investigation'
 ];
 
 const paymentKeywords = [
-  'payment', 'pay', 'fee', 'charge', 'amount', 'rupees', 'rs', 'inr',
-  'delivery fee', 'verification fee', 'registration fee',
-  'google pay', 'phonepe', 'paytm', 'cred', 'upi', 'gpay', 'bhim',
-  'भुगतान', 'पैसे', 'रुपये'
+'payment','pay','fee','charge','amount','rs','inr',
+'google pay','phonepe','paytm','upi','gpay'
 ];
 
-const upiPlatformKeywords = [
-  'phonepe', 'paytm', 'google pay', 'gpay', 'bhim', 'upi'
-];
-
-const sensitiveDataKeywords = [
-  'otp', 'one time password', 'verification code', 'pin', 'password',
-  'cvv', 'card number', 'account number', 'aadhaar', 'aadhar', 'pan',
-  'bank details', 'atm pin', 'debit card', 'credit card',
-  'ओटीपी', 'पासवर्ड', 'आधार', 'पैन'
-];
-
-const verifyKeywords = [
-  'verify', 'update', 'confirm', 'validate', 'authenticate',
-  'kyc', 'know your customer', 'सत्यापित', 'अपडेट'
+const sensitiveKeywords = [
+'otp','password','pin','cvv','card number','bank details',
+'aadhaar','pan'
 ];
 
 const rewardKeywords = [
-  'won', 'winner', 'prize', 'lottery', 'reward', 'cashback',
-  'guaranteed', 'profit', 'earn money', 'जीता', 'इनाम'
+'won','winner','lottery','reward','cashback','guaranteed','profit'
 ];
 
 const cryptoKeywords = [
-  'bitcoin', 'btc', 'ethereum', 'eth', 'usdt', 'usdc', 'cryptocurrency',
-  'crypto', 'blockchain', 'wallet', 'mining', 'nft', 'altcoin',
-  'बिटकॉइन', 'क्रिप्टो', 'माइनिंग'
+'bitcoin','btc','ethereum','eth','crypto','wallet','mining'
 ];
 
-const investmentScamKeywords = [
-  'daily returns', 'guaranteed profit', 'guaranteed returns', 'high returns',
-  'easy money', 'passive income', 'earn fast', 'investment program',
-  'mining pool', 'trading bot', 'trading signals', 'forex', 'mlm',
-  'pyramid', 'doubling', 'double your money', 'roi', 'return on investment',
-  'limited slots', 'limited positions', 'exclusive opportunity',
-  'दैनिक रिटर्न', 'गारंटीड लाभ', 'आसान पैसा', 'निष्क्रिय आय'
+const investmentKeywords = [
+'daily returns','guaranteed returns','double your money',
+'passive income','investment opportunity','trading bot'
 ];
 
-const stockMarketKeywords = [
-  'stock tips', 'trading group', 'telegram group', 'vip signals',
-  'pump signals', 'insider tips', 'multibagger', 'stock profit',
-  'trading signals', 'share tips', 'penny stocks', 'stock advisory'
+const stockKeywords = [
+'stock tips','multibagger','trading signals','telegram trading','share tips'
+];
+
+const jobKeywords = [
+'work from home','data entry job','earn per day','registration fee','online job'
 ];
 
 const bankKeywords = [
-  'bank', 'sbi', 'icici', 'hdfc', 'axis', 'pnb', 'boi', 'canara',
-  'yes bank', 'idbi', 'kotak', 'indusind', 'banjara', 'federal bank',
-  'rbi', 'reserve bank', 'account', 'debit', 'credit', 'kyc',
-  'बैंक', 'खाता', 'सीबीआई', 'आईसीआईसी', 'एचडीएफसी'
+'bank','sbi','hdfc','icici','axis','account','kyc'
 ];
 
-const percentagePattern = /(\d+\s*%\s*(daily|hourly|weekly|monthly|per\s*day|return))/i;
-const cashbackPattern = /(?:₹|rs\.?)\s*(\d+)\s*(?:to get|to receive|get|receive)\s*(?:₹|rs\.?)\s*(\d+)|(?:pay|send)\s*(?:₹|rs\.?)\s*(\d+)\s*(?:to get|get|receive)\s*(?:₹|rs\.?)\s*(\d+)/i;
+const deliveryKeywords = [
+'parcel','delivery','shipment','courier','tracking','package'
+];
+
+const lotteryKeywords = [
+'lucky draw','lottery','jackpot','prize money'
+];
+
+const techSupportKeywords = [
+'microsoft support','technical support','virus detected','computer infected','security alert'
+];
+
+const governmentKeywords = [
+'income tax','tax notice','government penalty','rbi notice','cbi investigation','police case','digital arrest'
+];
+
+const giftCardKeywords = [
+'gift card','amazon gift card','itunes card','google play card'
+];
+
+const simSwapKeywords = [
+'sim upgrade','sim verification','sim block','sim activation'
+];
+
+const remoteAccessKeywords = [
+'anydesk','teamviewer','quicksupport','screen share','remote access'
+];
+
+const apkKeywords = [
+'.apk','download app','install app','kyc update app'
+];
+
+const creditCardKeywords = [
+'credit card limit','limit upgrade','card verification','limit increase'
+];
+
+const upiCollectKeywords = [
+'collect request','approve request','accept payment request'
+];
+
+/* ---------------- REGEX ---------------- */
+
+const percentagePattern =
+/(\d+\s*%\s*(daily|weekly|monthly|return))/i;
+
+const cashbackPattern =
+/(?:pay|send)?\s*(?:₹|rs.?)?\s*\d{2,6}\s*(?:to|get|receive)\s*(?:₹|rs.?)?\s*\d{2,6}/i;
+
+/* ---------------- MAIN FUNCTION ---------------- */
 
 export function analyzeMessage(text: string, urlInput?: string): ScamAnalysisResult {
-  const indicators: string[] = [];
-  const sensitiveData: string[] = [];
-  const psychologyTactics: string[] = [];
-  const reasons: string[] = [];
-  const safeIndicators: string[] = [];
-  let riskScore = 0;
-  let scamType = 'None detected';
-  let indicatorCount = 0;
 
-  const lowerText = text.toLowerCase();
-  const urls = extractURLs(text);
-  if (urlInput) {
-    urls.push(urlInput);
-  }
+const indicators: string[] = [];
+const reasons: string[] = [];
+const psychology: string[] = [];
+const sensitiveData: string[] = [];
+const safeIndicators: string[] = [];
 
-  const hasUrgency = urgencyKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
-  const hasFear = fearKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
-  const hasPayment = paymentKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
-  const hasUPIPlatform = upiPlatformKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
-  const hasSensitiveData = sensitiveDataKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
-  const hasVerify = verifyKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
-  const hasReward = rewardKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
-  const hasCrypto = cryptoKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
-  const hasStockMarket = stockMarketKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
-  const hasBank = bankKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
-  const hasInvestmentScamKeywords = investmentScamKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
-  const hasHighReturns = percentagePattern.test(text);
-  const hasCashbackPattern = cashbackPattern.test(text);
-  const phones = extractPhoneNumbers(text);
-  let hasSuspiciousLink = false;
+let riskScore=0;
+let scamType: ScamType = 'None detected';
 
-  if (urls.length > 0) {
-    urls.forEach(url => {
-      const domain = getDomain(url);
+const lowerText=text.toLowerCase();
 
-      if (isShortenedURL(url)) {
-        indicators.push('Shortened URL detected');
-        riskScore += 15;
-        indicatorCount++;
-        reasons.push('Message contains shortened URL which may hide the real destination');
-        hasSuspiciousLink = true;
-      }
+const urls=extractURLs(text);
+if(urlInput) urls.push(urlInput);
 
-      if (hasSuspiciousTLD(url)) {
-        indicators.push('Suspicious domain extension');
-        riskScore += 20;
-        indicatorCount++;
-        reasons.push('URL uses suspicious domain extension commonly used by scammers');
-        hasSuspiciousLink = true;
-      }
+const phones=extractPhoneNumbers(text);
 
-      const isTrusted = trustedDomains.some(td => domain === td.domain || domain.endsWith(`.${td.domain}`));
-      if (!isTrusted) {
-        if (hasSensitiveData || hasPayment || hasVerify) {
-          indicators.push('Untrusted domain with suspicious request');
-          riskScore += 25;
-          indicatorCount++;
-          reasons.push('Unverified website requesting sensitive information, payment, or verification');
-          hasSuspiciousLink = true;
-        } else {
-          indicators.push('Suspicious link detected');
-          riskScore += 10;
-          indicatorCount++;
-          reasons.push('Link from unverified domain');
-          hasSuspiciousLink = true;
-        }
-      } else {
-        safeIndicators.push(`Link belongs to verified domain: ${domain}`);
-      }
-    });
-  }
+let suspiciousLink=false;
 
-  if (hasSensitiveData) {
-    const detectedData = sensitiveDataKeywords.filter(kw =>
-      lowerText.includes(kw.toLowerCase())
-    );
-    sensitiveData.push(...detectedData);
-    indicators.push('Requests sensitive information');
-    riskScore += 30;
-    indicatorCount++;
-    reasons.push('Message asks for sensitive information like OTP, PIN, or bank details');
+/* ---------- URL ANALYSIS ---------- */
 
-    if (detectedData.some(d => d.toLowerCase().includes('otp'))) {
-      scamType = 'OTP Scam';
-    } else if (detectedData.some(d => ['aadhaar', 'aadhar', 'pan'].includes(d.toLowerCase()))) {
-      scamType = 'Data Harvesting Scam';
-    } else {
-      scamType = 'Bank Scam';
-    }
-  }
+urls.forEach(url=>{
 
-  if (hasCashbackPattern) {
-    indicators.push('Small payment to large reward pattern detected');
-    riskScore += 35;
-    indicatorCount++;
-    reasons.push('Message shows cashback fraud pattern: small payment promising large rewards');
+const domain=getDomain(url);
 
-    if (scamType === 'None detected') {
-      scamType = 'UPI Payment Scam';
-    }
-  }
-
-  if (hasPayment) {
-    indicators.push('Payment request detected');
-    riskScore += 25;
-    indicatorCount++;
-    reasons.push('Message requests payment or mentions payment platforms');
-
-    if (hasUPIPlatform && (hasReward || lowerText.includes('cashback') || lowerText.includes('reward'))) {
-      if (scamType === 'None detected') {
-        scamType = 'UPI Payment Scam';
-        riskScore += 15;
-      }
-    } else if (lowerText.includes('delivery') || lowerText.includes('parcel') || lowerText.includes('courier')) {
-      if (scamType === 'None detected') {
-        scamType = 'Delivery Scam';
-      }
-    } else if (scamType === 'None detected') {
-      scamType = 'Bank Scam';
-    }
-  }
-
-  if (hasUrgency) {
-    psychologyTactics.push('Urgency');
-    indicators.push('Uses urgency tactics');
-    riskScore += 15;
-    indicatorCount++;
-    reasons.push('Creates false sense of urgency to pressure quick action');
-  }
-
-  if (hasFear) {
-    psychologyTactics.push('Fear');
-    indicators.push('Uses fear tactics');
-    riskScore += 20;
-    indicatorCount++;
-    reasons.push('Uses threats or fear tactics like account blocking or legal action');
-  }
-
-  if (hasReward) {
-    psychologyTactics.push('Greed');
-    indicators.push('Promises unrealistic rewards');
-    riskScore += 30;
-    indicatorCount++;
-    reasons.push('Promises unrealistic prizes, rewards, or guaranteed profits');
-
-    if (scamType === 'None detected') {
-      scamType = 'Investment Scam';
-    }
-  }
-
-  if (phones.length > 0) {
-    if (hasUrgency || hasSensitiveData) {
-      indicators.push('Urgent phone call request');
-      riskScore += 15;
-      indicatorCount++;
-      reasons.push('Requests immediate phone call combined with urgency or data request');
-
-      if (scamType === 'None detected') {
-        scamType = 'Fake Support Scam';
-      }
-    } else if (hasReward) {
-      indicators.push('Phone number with reward promise');
-      riskScore += 12;
-      indicatorCount++;
-      reasons.push('Phone number associated with prize or reward claim');
-
-      if (scamType === 'None detected') {
-        scamType = 'Prize Scam';
-      }
-    }
-  }
-
-  if (hasBank && hasSensitiveData && (hasVerify || urls.length > 0)) {
-    indicators.push('Bank phishing scam detected');
-    riskScore += 35;
-    indicatorCount++;
-    reasons.push('Bank impersonation requesting OTP or verification through suspicious link');
-    psychologyTactics.push('Authority');
-
-    if (scamType === 'None detected') {
-      scamType = 'Bank Phishing Scam';
-    }
-  }
-
-  if (hasVerify && (urls.length > 0 || hasSensitiveData)) {
-    indicators.push('Verification scam pattern');
-    riskScore += 20;
-    indicatorCount++;
-    reasons.push('Asks to verify account or update details via link or sensitive info');
-
-    if (urls.length > 0 && hasSuspiciousLink && scamType === 'None detected') {
-      scamType = 'Phishing Link';
-    }
-  }
-
-  if (hasCrypto && (hasInvestmentScamKeywords || hasHighReturns || hasPayment)) {
-    indicators.push('Cryptocurrency investment scam detected');
-    riskScore = Math.max(riskScore + 35, 70);
-    indicatorCount++;
-    reasons.push('Message promotes cryptocurrency investment with suspicious claims');
-
-    if (scamType === 'None detected') {
-      scamType = 'Crypto Investment Scam';
-    }
-  } else if (hasCrypto && (hasUrgency || hasPayment)) {
-    indicators.push('Suspicious cryptocurrency request');
-    riskScore += 30;
-    indicatorCount++;
-    reasons.push('Message requests cryptocurrency transfer with urgency or payment');
-
-    if (scamType === 'None detected') {
-      scamType = 'Crypto Investment Scam';
-    }
-  }
-
-  if (hasInvestmentScamKeywords && hasHighReturns) {
-    indicators.push('Unrealistic returns promise');
-    riskScore += 28;
-    indicatorCount++;
-    reasons.push('Message promises unrealistic daily or recurring returns on investment');
-
-    if (scamType === 'None detected' || scamType === 'Investment Scam') {
-      scamType = 'Investment Scam';
-    }
-  } else if (hasInvestmentScamKeywords && hasUrgency) {
-    indicators.push('Investment pressure tactic');
-    riskScore += 25;
-    indicatorCount++;
-    reasons.push('Investment opportunity combined with urgency to limit decision time');
-
-    if (scamType === 'None detected') {
-      scamType = 'Investment Scam';
-    }
-  }
-
-  if (hasStockMarket && (hasReward || hasInvestmentScamKeywords)) {
-    indicators.push('Stock market scam detected');
-    riskScore += 32;
-    indicatorCount++;
-    reasons.push('Message promotes stock tips, trading signals, or guaranteed stock profits');
-
-    if (scamType === 'None detected') {
-      scamType = 'Stock Market Scam';
-    }
-  }
-
-  if (indicators.length === 0) {
-    safeIndicators.push('No suspicious payment requests detected');
-    safeIndicators.push('No sensitive information requested');
-    if (urls.length === 0) {
-      safeIndicators.push('No suspicious links detected');
-    }
-    reasons.push('Message appears to be a normal notification');
-  }
-
-  riskScore = Math.min(riskScore, 100);
-
-  let classification: 'Legitimate' | 'Suspicious' | 'Scam';
-  let advice: string;
-
-  const criticalIndicators = hasSensitiveData || hasPayment || hasSuspiciousLink ||
-                           hasUrgency || hasFear || hasReward || hasCrypto || hasInvestmentScamKeywords ||
-                           hasStockMarket || hasCashbackPattern || hasUPIPlatform || (hasBank && hasSensitiveData);
-
-  if (indicatorCount === 0 && !criticalIndicators) {
-    riskScore = Math.min(riskScore, 25);
-    classification = 'Legitimate';
-    advice = 'This message appears legitimate. However, always verify sender details and never share OTP or banking information.';
-  } else if (indicatorCount === 0) {
-    riskScore = Math.max(riskScore, 26);
-    riskScore = Math.min(riskScore, 50);
-    classification = 'Suspicious';
-    advice = 'This message shows suspicious patterns. Verify the sender through official channels before taking any action. Do not click links or share any information.';
-  } else if (scamType === 'Crypto Investment Scam') {
-    riskScore = Math.max(riskScore, 70);
-    classification = 'Scam';
-    advice = 'This is a cryptocurrency investment scam. DO NOT send any cryptocurrency or share wallet details. Block the sender immediately.';
-  } else if (scamType !== 'None detected') {
-    riskScore = Math.max(riskScore, 40);
-    if (riskScore <= 50) {
-      riskScore = Math.max(riskScore, 40);
-      riskScore = Math.min(riskScore, 50);
-      classification = 'Suspicious';
-      advice = 'This message shows suspicious patterns. Verify the sender through official channels before taking any action. Do not click links or share any information.';
-    } else if (riskScore <= 75) {
-      riskScore = Math.max(riskScore, 51);
-      classification = 'High Risk';
-      advice = 'This message shows strong scam indicators. DO NOT respond, click links, or share any information. Delete this message and block the sender.';
-    } else {
-      riskScore = Math.max(riskScore, 76);
-      classification = 'Scam';
-      advice = 'This message shows strong scam indicators. DO NOT respond, click links, or share any information. Delete this message and block the sender.';
-    }
-  } else if (riskScore <= 25) {
-    classification = 'Legitimate';
-    advice = 'This message appears legitimate. However, always verify sender details and never share OTP or banking information.';
-  } else if (riskScore <= 50) {
-    riskScore = Math.max(riskScore, 26);
-    classification = 'Suspicious';
-    advice = 'This message shows suspicious patterns. Verify the sender through official channels before taking any action. Do not click links or share any information.';
-  } else if (riskScore <= 75) {
-    riskScore = Math.max(riskScore, 51);
-    classification = 'High Risk';
-    advice = 'This message shows strong scam indicators. DO NOT respond, click links, or share any information. Delete this message and block the sender.';
-  } else {
-    riskScore = Math.max(riskScore, 76);
-    classification = 'Scam';
-    advice = 'This message shows strong scam indicators. DO NOT respond, click links, or share any information. Delete this message and block the sender.';
-  }
-
-  if ((hasSensitiveData || hasPayment || hasSuspiciousLink || hasUrgency || hasFear || hasReward ||
-       hasCrypto || hasInvestmentScamKeywords) && classification === 'Legitimate') {
-    classification = 'Suspicious';
-    riskScore = Math.max(riskScore, 26);
-  }
-
-  return {
-    risk_score: riskScore,
-    risk_level: getRiskLevel(riskScore),
-    classification,
-    scam_type: scamType,
-    indicators,
-    sensitive_data_detected: sensitiveData,
-    psychology_tactics: psychologyTactics,
-    reasons,
-    safe_indicators: safeIndicators,
-    advice
-  };
+if(isShortenedURL(url)){
+indicators.push('Shortened URL detected');
+reasons.push('Shortened URLs can hide the real website destination');
+riskScore+=20;
+suspiciousLink=true;
 }
 
-function getRiskLevel(score: number): 'Low' | 'Medium' | 'High' {
-  if (score <= 25) return 'Low';
-  if (score <= 50) return 'Medium';
-  return 'High';
+if(hasSuspiciousTLD(url)){
+indicators.push('Suspicious domain extension');
+reasons.push('Domain extension often used by scam websites');
+riskScore+=20;
+suspiciousLink=true;
+}
+
+const trusted=trustedDomains.some(td=>domain===td.domain||domain.endsWith(`.${td.domain}`));
+
+if(!trusted){
+indicators.push('Untrusted domain');
+reasons.push('Link belongs to an unknown or unverified website');
+riskScore+=15;
+suspiciousLink=true;
+}else{
+safeIndicators.push('Trusted domain detected');
+}
+
+});
+
+/* ---------- SIGNAL DETECTION ---------- */
+
+const hasUrgency=urgencyKeywords.some(k=>lowerText.includes(k));
+const hasFear=fearKeywords.some(k=>lowerText.includes(k));
+const hasPayment=paymentKeywords.some(k=>lowerText.includes(k));
+const hasSensitive=sensitiveKeywords.some(k=>lowerText.includes(k));
+const hasReward=rewardKeywords.some(k=>lowerText.includes(k));
+const hasCrypto=cryptoKeywords.some(k=>lowerText.includes(k));
+const hasInvestment=investmentKeywords.some(k=>lowerText.includes(k));
+const hasStock=stockKeywords.some(k=>lowerText.includes(k));
+const hasJob=jobKeywords.some(k=>lowerText.includes(k));
+const hasBank=bankKeywords.some(k=>lowerText.includes(k));
+const hasDelivery=deliveryKeywords.some(k=>lowerText.includes(k));
+const hasLottery=lotteryKeywords.some(k=>lowerText.includes(k));
+const hasTechSupport=techSupportKeywords.some(k=>lowerText.includes(k));
+const hasGovernment=governmentKeywords.some(k=>lowerText.includes(k));
+const hasGiftCard=giftCardKeywords.some(k=>lowerText.includes(k));
+const hasSimSwap=simSwapKeywords.some(k=>lowerText.includes(k));
+const hasRemoteAccess=remoteAccessKeywords.some(k=>lowerText.includes(k));
+const hasAPK=apkKeywords.some(k=>lowerText.includes(k));
+const hasCreditCard=creditCardKeywords.some(k=>lowerText.includes(k));
+const hasUPICollect=upiCollectKeywords.some(k=>lowerText.includes(k));
+
+const highReturn=percentagePattern.test(text);
+const cashback=cashbackPattern.test(text);
+
+/* ---------- PSYCHOLOGY ---------- */
+
+if(hasUrgency){
+psychology.push('Urgency');
+indicators.push('Uses urgency tactics');
+reasons.push('Creates pressure to act immediately');
+riskScore+=15;
+}
+
+if(hasFear){
+psychology.push('Fear');
+indicators.push('Uses fear tactics');
+reasons.push('Threatens legal action or account blocking');
+riskScore+=20;
+}
+
+if(hasReward){
+psychology.push('Greed');
+indicators.push('Promises unrealistic rewards');
+reasons.push('Promises prizes, cashback, or guaranteed profit');
+riskScore+=25;
+}
+
+/* ---------- SENSITIVE DATA ---------- */
+
+if(hasSensitive){
+indicators.push('Sensitive information requested');
+reasons.push('Message asks for OTP or banking information');
+sensitiveData.push('personal information');
+riskScore+=30;
+scamType='OTP Scam';
+}
+
+/* ---------- BANK PHISHING ---------- */
+
+if(hasBank&&(hasSensitive||suspiciousLink)){
+indicators.push('Bank impersonation detected');
+reasons.push('Pretends to be a bank requesting verification');
+psychology.push('Authority');
+riskScore+=35;
+scamType='Bank Phishing Scam';
+}
+
+/* ---------- DELIVERY SCAM ---------- */
+
+if(hasDelivery&&hasPayment){
+indicators.push('Delivery scam detected');
+reasons.push('Fake parcel delivery asking for payment');
+riskScore+=30;
+scamType='Delivery Scam';
+}
+
+/* ---------- LOTTERY SCAM ---------- */
+
+if(hasLottery&&hasReward){
+indicators.push('Lottery scam detected');
+reasons.push('Claims you won a prize or jackpot');
+riskScore+=30;
+scamType='Lottery Scam';
+}
+
+/* ---------- UPI COLLECT SCAM ---------- */
+
+if(hasUPICollect){
+indicators.push('UPI collect request scam');
+reasons.push('Tricks users into approving payment requests');
+riskScore+=30;
+scamType='UPI Collect Scam';
+}
+
+/* ---------- PAYMENT SCAM ---------- */
+
+if(hasPayment){
+indicators.push('Payment request detected');
+reasons.push('Message requests money transfer');
+riskScore+=25;
+
+if(cashback){
+indicators.push('Cashback scam pattern');
+reasons.push('Small payment promised to generate larger reward');
+riskScore+=35;
+scamType='UPI Payment Scam';
+}
+}
+
+/* ---------- CRYPTO SCAM ---------- */
+
+if(hasCrypto&&(hasInvestment||highReturn)){
+indicators.push('Cryptocurrency investment scam');
+reasons.push('Crypto investment promising unrealistic returns');
+riskScore=Math.max(riskScore+35,70);
+scamType='Crypto Investment Scam';
+}
+
+/* ---------- STOCK SCAM ---------- */
+
+if(hasStock&&(hasReward||hasInvestment)){
+indicators.push('Stock trading scam');
+reasons.push('Message promotes guaranteed stock profits');
+riskScore+=30;
+scamType='Stock Market Scam';
+}
+
+/* ---------- JOB SCAM ---------- */
+
+if(hasJob&&hasPayment){
+indicators.push('Job scam detected');
+reasons.push('Work-from-home job asking for registration fee');
+riskScore+=30;
+scamType='Job Scam';
+}
+
+/* ---------- TECH SUPPORT SCAM ---------- */
+
+if(hasTechSupport){
+indicators.push('Fake tech support scam');
+reasons.push('Claims device infection and asks to call support');
+riskScore+=25;
+scamType='Fake Support Scam';
+}
+
+/* ---------- GOVERNMENT / DIGITAL ARREST ---------- */
+
+if(hasGovernment){
+indicators.push('Government impersonation scam');
+reasons.push('Pretends to be police or government investigation');
+riskScore+=35;
+scamType='Government Scam';
+}
+
+/* ---------- SIM SWAP SCAM ---------- */
+
+if(hasSimSwap){
+indicators.push('SIM swap scam');
+reasons.push('Requests SIM verification or activation');
+riskScore+=30;
+scamType='SIM Swap Scam';
+}
+
+/* ---------- REMOTE ACCESS SCAM ---------- */
+
+if(hasRemoteAccess){
+indicators.push('Remote access app scam');
+reasons.push('Requests installation of remote control apps');
+riskScore+=30;
+scamType='Remote Access Scam';
+}
+
+/* ---------- APK MALWARE SCAM ---------- */
+
+if(hasAPK){
+indicators.push('APK malware scam');
+reasons.push('Requests downloading suspicious APK application');
+riskScore+=30;
+scamType='APK Malware Scam';
+}
+
+/* ---------- CREDIT CARD SCAM ---------- */
+
+if(hasCreditCard&&hasSensitive){
+indicators.push('Credit card upgrade scam');
+reasons.push('Asks OTP for credit card limit upgrade');
+riskScore+=30;
+scamType='Credit Card Scam';
+}
+
+/* ---------- GIFT CARD SCAM ---------- */
+
+if(hasGiftCard){
+indicators.push('Gift card scam');
+reasons.push('Requests payment through gift cards');
+riskScore+=25;
+scamType='Gift Card Scam';
+}
+
+/* ---------- PHONE SCAM ---------- */
+
+if(phones.length>0&&(hasUrgency||hasSensitive)){
+indicators.push('Suspicious phone call request');
+reasons.push('Asks victim to call unknown number urgently');
+riskScore+=15;
+if(scamType==='None detected') scamType='Fake Support Scam';
+}
+
+/* ---------- FINAL SCORE ---------- */
+
+riskScore=Math.min(riskScore,100);
+
+let classification:'Legitimate'|'Suspicious'|'Scam';
+let advice:string;
+
+if(riskScore<=25){
+classification='Legitimate';
+advice='Message appears safe but always verify sender.';
+}
+else if(riskScore<=50){
+classification='Suspicious';
+advice='Message shows suspicious patterns. Verify before taking action.';
+}
+else{
+classification='Scam';
+advice='Strong scam indicators detected. Do not respond or share information.';
+}
+
+return{
+risk_score:riskScore,
+risk_level:getRiskLevel(riskScore),
+classification,
+scam_type:scamType,
+indicators,
+sensitive_data_detected:sensitiveData,
+psychology_tactics:psychology,
+reasons,
+safe_indicators:safeIndicators,
+advice
+};
+
+}
+
+function getRiskLevel(score:number):'Low'|'Medium'|'High'{
+if(score<=25)return'Low';
+if(score<=50)return'Medium';
+return'High';
 }
