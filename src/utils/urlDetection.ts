@@ -26,7 +26,7 @@ export function hasSuspiciousTLD(url: string): boolean {
 
 export function isShortenedURL(url: string): boolean {
   const domain = getDomain(url);
-  return shortenedUrlDomains.some(shortDomain => domain.includes(shortDomain));
+  return shortenedUrlDomains.some(shortDomain => domain === shortDomain || domain.endsWith(`.${shortDomain}`));
 }
 
 export function extractPhoneNumbers(text: string): string[] {

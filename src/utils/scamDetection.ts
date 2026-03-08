@@ -17,8 +17,12 @@ const fearKeywords = [
 const paymentKeywords = [
   'payment', 'pay', 'fee', 'charge', 'amount', 'rupees', 'rs', 'inr',
   'delivery fee', 'verification fee', 'registration fee',
-  'google pay', 'phonepe', 'paytm', 'cred', 'upi', 'gpay',
+  'google pay', 'phonepe', 'paytm', 'cred', 'upi', 'gpay', 'bhim',
   'भुगतान', 'पैसे', 'रुपये'
+];
+
+const upiPlatformKeywords = [
+  'phonepe', 'paytm', 'google pay', 'gpay', 'bhim', 'upi'
 ];
 
 const sensitiveDataKeywords = [
@@ -53,7 +57,14 @@ const investmentScamKeywords = [
   'दैनिक रिटर्न', 'गारंटीड लाभ', 'आसान पैसा', 'निष्क्रिय आय'
 ];
 
+const stockMarketKeywords = [
+  'stock tips', 'trading group', 'telegram group', 'vip signals',
+  'pump signals', 'insider tips', 'multibagger', 'stock profit',
+  'trading signals', 'share tips', 'penny stocks', 'stock advisory'
+];
+
 const percentagePattern = /(\d+\s*%\s*(daily|hourly|weekly|monthly|per\s*day|return))/i;
+const cashbackPattern = /(?:₹|rs\.?)\s*(\d+)\s*(?:to get|to receive|get|receive)\s*(?:₹|rs\.?)\s*(\d+)|(?:pay|send)\s*(?:₹|rs\.?)\s*(\d+)\s*(?:to get|get|receive)\s*(?:₹|rs\.?)\s*(\d+)/i;
 
 export function analyzeMessage(text: string, urlInput?: string): ScamAnalysisResult {
   const indicators: string[] = [];
@@ -74,12 +85,15 @@ export function analyzeMessage(text: string, urlInput?: string): ScamAnalysisRes
   const hasUrgency = urgencyKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
   const hasFear = fearKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
   const hasPayment = paymentKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
+  const hasUPIPlatform = upiPlatformKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
   const hasSensitiveData = sensitiveDataKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
   const hasVerify = verifyKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
   const hasReward = rewardKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
   const hasCrypto = cryptoKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
+  const hasStockMarket = stockMarketKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
   const hasInvestmentScamKeywords = investmentScamKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
   const hasHighReturns = percentagePattern.test(text);
+  const hasCashbackPattern = cashbackPattern.test(text);
   const phones = extractPhoneNumbers(text);
   let hasSuspiciousLink = false;
 
@@ -103,7 +117,7 @@ export function analyzeMessage(text: string, urlInput?: string): ScamAnalysisRes
         hasSuspiciousLink = true;
       }
 
-      const isTrusted = trustedDomains.some(td => domain.includes(td.domain));
+      const isTrusted = trustedDomains.some(td => domain === td.domain || domain.endsWith(`.${td.domain}`));
       if (!isTrusted) {
         if (hasSensitiveData || hasPayment || hasVerify) {
           indicators.push('Untrusted domain with suspicious request');
@@ -143,13 +157,29 @@ export function analyzeMessage(text: string, urlInput?: string): ScamAnalysisRes
     }
   }
 
+  if (hasCashbackPattern) {
+    indicators.push('Small payment to large reward pattern detected');
+    riskScore += 35;
+    indicatorCount++;
+    reasons.push('Message shows cashback fraud pattern: small payment promising large rewards');
+
+    if (scamType === 'None detected') {
+      scamType = 'UPI Payment Scam';
+    }
+  }
+
   if (hasPayment) {
     indicators.push('Payment request detected');
     riskScore += 25;
     indicatorCount++;
     reasons.push('Message requests payment or mentions payment platforms');
 
-    if (lowerText.includes('delivery') || lowerText.includes('parcel') || lowerText.includes('courier')) {
+    if (hasUPIPlatform && (hasReward || lowerText.includes('cashback') || lowerText.includes('reward'))) {
+      if (scamType === 'None detected') {
+        scamType = 'UPI Payment Scam';
+        riskScore += 15;
+      }
+    } else if (lowerText.includes('delivery') || lowerText.includes('parcel') || lowerText.includes('courier')) {
       if (scamType === 'None detected') {
         scamType = 'Delivery Scam';
       }
@@ -177,7 +207,7 @@ export function analyzeMessage(text: string, urlInput?: string): ScamAnalysisRes
   if (hasReward) {
     psychologyTactics.push('Greed');
     indicators.push('Promises unrealistic rewards');
-    riskScore += 20;
+    riskScore += 30;
     indicatorCount++;
     reasons.push('Promises unrealistic prizes, rewards, or guaranteed profits');
 
@@ -186,14 +216,25 @@ export function analyzeMessage(text: string, urlInput?: string): ScamAnalysisRes
     }
   }
 
-  if (phones.length > 0 && (hasUrgency || hasSensitiveData)) {
-    indicators.push('Urgent phone call request');
-    riskScore += 15;
-    indicatorCount++;
-    reasons.push('Requests immediate phone call combined with urgency or data request');
+  if (phones.length > 0) {
+    if (hasUrgency || hasSensitiveData) {
+      indicators.push('Urgent phone call request');
+      riskScore += 15;
+      indicatorCount++;
+      reasons.push('Requests immediate phone call combined with urgency or data request');
 
-    if (scamType === 'None detected') {
-      scamType = 'Fake Support Scam';
+      if (scamType === 'None detected') {
+        scamType = 'Fake Support Scam';
+      }
+    } else if (hasReward) {
+      indicators.push('Phone number with reward promise');
+      riskScore += 12;
+      indicatorCount++;
+      reasons.push('Phone number associated with prize or reward claim');
+
+      if (scamType === 'None detected') {
+        scamType = 'Prize Scam';
+      }
     }
   }
 
@@ -210,9 +251,9 @@ export function analyzeMessage(text: string, urlInput?: string): ScamAnalysisRes
     }
   }
 
-  if (hasCrypto && hasInvestmentScamKeywords) {
+  if (hasCrypto && (hasInvestmentScamKeywords || hasHighReturns || hasPayment)) {
     indicators.push('Cryptocurrency investment scam detected');
-    riskScore += 35;
+    riskScore = Math.max(riskScore + 35, 70);
     indicatorCount++;
     reasons.push('Message promotes cryptocurrency investment with suspicious claims');
 
@@ -250,6 +291,17 @@ export function analyzeMessage(text: string, urlInput?: string): ScamAnalysisRes
     }
   }
 
+  if (hasStockMarket && (hasReward || hasInvestmentScamKeywords)) {
+    indicators.push('Stock market scam detected');
+    riskScore += 32;
+    indicatorCount++;
+    reasons.push('Message promotes stock tips, trading signals, or guaranteed stock profits');
+
+    if (scamType === 'None detected') {
+      scamType = 'Stock Market Scam';
+    }
+  }
+
   if (indicators.length === 0) {
     safeIndicators.push('No suspicious payment requests detected');
     safeIndicators.push('No sensitive information requested');
@@ -265,7 +317,8 @@ export function analyzeMessage(text: string, urlInput?: string): ScamAnalysisRes
   let advice: string;
 
   const criticalIndicators = hasSensitiveData || hasPayment || hasSuspiciousLink ||
-                           hasUrgency || hasFear || hasReward || hasCrypto || hasInvestmentScamKeywords;
+                           hasUrgency || hasFear || hasReward || hasCrypto || hasInvestmentScamKeywords ||
+                           hasStockMarket || hasCashbackPattern || hasUPIPlatform;
 
   if (indicatorCount === 0 && !criticalIndicators) {
     riskScore = Math.min(riskScore, 25);
