@@ -63,6 +63,13 @@ const stockMarketKeywords = [
   'trading signals', 'share tips', 'penny stocks', 'stock advisory'
 ];
 
+const bankKeywords = [
+  'bank', 'sbi', 'icici', 'hdfc', 'axis', 'pnb', 'boi', 'canara',
+  'yes bank', 'idbi', 'kotak', 'indusind', 'banjara', 'federal bank',
+  'rbi', 'reserve bank', 'account', 'debit', 'credit', 'kyc',
+  'बैंक', 'खाता', 'सीबीआई', 'आईसीआईसी', 'एचडीएफसी'
+];
+
 const percentagePattern = /(\d+\s*%\s*(daily|hourly|weekly|monthly|per\s*day|return))/i;
 const cashbackPattern = /(?:₹|rs\.?)\s*(\d+)\s*(?:to get|to receive|get|receive)\s*(?:₹|rs\.?)\s*(\d+)|(?:pay|send)\s*(?:₹|rs\.?)\s*(\d+)\s*(?:to get|get|receive)\s*(?:₹|rs\.?)\s*(\d+)/i;
 
@@ -91,6 +98,7 @@ export function analyzeMessage(text: string, urlInput?: string): ScamAnalysisRes
   const hasReward = rewardKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
   const hasCrypto = cryptoKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
   const hasStockMarket = stockMarketKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
+  const hasBank = bankKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
   const hasInvestmentScamKeywords = investmentScamKeywords.some(kw => lowerText.includes(kw.toLowerCase()));
   const hasHighReturns = percentagePattern.test(text);
   const hasCashbackPattern = cashbackPattern.test(text);
@@ -238,16 +246,26 @@ export function analyzeMessage(text: string, urlInput?: string): ScamAnalysisRes
     }
   }
 
+  if (hasBank && hasSensitiveData && (hasVerify || urls.length > 0)) {
+    indicators.push('Bank phishing scam detected');
+    riskScore += 35;
+    indicatorCount++;
+    reasons.push('Bank impersonation requesting OTP or verification through suspicious link');
+    psychologyTactics.push('Authority');
+
+    if (scamType === 'None detected') {
+      scamType = 'Bank Phishing Scam';
+    }
+  }
+
   if (hasVerify && (urls.length > 0 || hasSensitiveData)) {
     indicators.push('Verification scam pattern');
     riskScore += 20;
     indicatorCount++;
     reasons.push('Asks to verify account or update details via link or sensitive info');
 
-    if (urls.length > 0 && hasSuspiciousLink) {
-      if (scamType === 'None detected') {
-        scamType = 'Phishing Link';
-      }
+    if (urls.length > 0 && hasSuspiciousLink && scamType === 'None detected') {
+      scamType = 'Phishing Link';
     }
   }
 
@@ -318,7 +336,7 @@ export function analyzeMessage(text: string, urlInput?: string): ScamAnalysisRes
 
   const criticalIndicators = hasSensitiveData || hasPayment || hasSuspiciousLink ||
                            hasUrgency || hasFear || hasReward || hasCrypto || hasInvestmentScamKeywords ||
-                           hasStockMarket || hasCashbackPattern || hasUPIPlatform;
+                           hasStockMarket || hasCashbackPattern || hasUPIPlatform || (hasBank && hasSensitiveData);
 
   if (indicatorCount === 0 && !criticalIndicators) {
     riskScore = Math.min(riskScore, 25);
